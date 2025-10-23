@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queen Riam Bot Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header { 
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { 
+            font-size: 2.5em; 
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #f39c12, #e74c3c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 20px; 
+            padding: 30px;
+        }
+        .stat-card { 
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-number { 
+            font-size: 2.5em; 
+            font-weight: bold; 
+            margin-bottom: 10px;
+        }
+        .broadcast-section { 
+            background: #f8f9fa; 
+            padding: 30px; 
+            margin: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #e74c3c;
+        }
+        .broadcast-form textarea { 
+            width: 100%; 
+            height: 120px; 
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            resize: vertical;
+        }
+        .broadcast-form button { 
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .broadcast-form button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+        .instances-section { 
+            padding: 30px; 
+        }
+        .instance-item { 
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .instance-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateX(5px);
+        }
+        .instance-info { flex: 1; }
+        .instance-id { font-weight: bold; color: #2c3e50; }
+        .instance-owner { color: #7f8c8d; margin: 5px 0; }
+        .instance-stats { color: #34495e; font-size: 0.9em; }
+        .status { 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status.online { background: #d4edda; color: #155724; }
+        .status.offline { background: #f8d7da; color: #721c24; }
+        .last-seen { color: #95a5a6; font-size: 0.8em; }
+        
+        .loading { 
+            text-align: center; 
+            padding: 40px; 
+            color: #7f8c8d;
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .instance-item { flex-direction: column; align-items: flex-start; }
+            .instance-item > div { margin-bottom: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👑 Queen Riam Bot Tracker</h1>
+            <p>Monitor all your bot deployments in real-time</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <h2>🔄 Loading dashboard...</h2>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="dashboard" style="display: none;">
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <div class="broadcast-section">
+                <h2>📢 Send Broadcast Message</h2>
+                <div class="broadcast-form">
+                    <textarea id="broadcastMessage" placeholder="Enter your message to send to all bot users..."></textarea>
+                    <button onclick="sendBroadcast()">🚀 Send to All Bots</button>
+                </div>
+            </div>
+
+            <div class="instances-section">
+                <h2>🖥️ Active Bot Instances</h2>
+                <div id="instancesList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TRACKER_URL = window.location.origin + '/api';
+        
+        async function loadDashboard() {
+            try {
+                const [statsRes, instancesRes] = await Promise.all([
+                    fetch(TRACKER_URL + '/stats'),
+                    fetch(TRACKER_URL + '/instances')
+                ]);
+                
+                if (!statsRes.ok || !instancesRes.ok) throw new Error('Failed to fetch data');
+                
+                const stats = await statsRes.json();
+                const instances = await instancesRes.json();
+                
+                // Update stats
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.totalInstances}</div>
+                        <div>Total Instances</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.activeInstances}</div>
+                        <div>Active Now</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.totalUsers}</div>
+                        <div>Total Users</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.totalGroups}</div>
+                        <div>Total Groups</div>
+                    </div>
+                `;
+                
+                // Update instances
+                const now = Date.now();
+                document.getElementById('instancesList').innerHTML = instances.map(instance => {
+                    const isOnline = (now - instance.lastPing) < 300000; // 5 minutes
+                    const lastSeen = new Date(instance.lastPing).toLocaleString();
+                    
+                    return `
+                        <div class="instance-item">
+                            <div class="instance-info">
+                                <div class="instance-id">${instance.instanceId}</div>
+                                <div class="instance-owner">Owner: ${instance.owner} | v${instance.version}</div>
+                                <div class="instance-stats">👥 ${instance.userCount} users | 👪 ${instance.groupCount} groups</div>
+                                <div class="last-seen">Last seen: ${lastSeen}</div>
+                            </div>
+                            <div class="status ${isOnline ? 'online' : 'offline'}">
+                                ${isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                            </div>
+                        </div>
+                    `;
+                }).join('') || '<div class="loading">No instances registered yet</div>';
+                
+                // Show dashboard
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `❌ Error loading dashboard: ${error.message}`;
+            }
+        }
+        
+        async function sendBroadcast() {
+            const message = document.getElementById('broadcastMessage').value.trim();
+            if (!message) {
+                alert('Please enter a broadcast message');
+                return;
+            }
+            
+            const ownerKey = prompt('Enter your owner key:');
+            if (!ownerKey) return;
+            
+            try {
+                const response = await fetch(TRACKER_URL + '/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, ownerKey })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Broadcast sent successfully!');
+                    document.getElementById('broadcastMessage').value = '';
+                    loadDashboard(); // Refresh
+                } else {
+                    alert('❌ Failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('❌ Error sending broadcast: ' + error.message);
+            }
+        }
+        
+        // Auto-refresh every 30 seconds
+        loadDashboard();
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>
